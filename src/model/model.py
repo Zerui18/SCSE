@@ -60,7 +60,7 @@ class Model(object):
             self.s_gen = DataGen(
                 data_base_dir, data_path, valid_target_len=valid_target_length, evaluate=False)
         else:
-            batch_size = 1
+            batch_size = 100
             self.s_gen = DataGen(
                 data_base_dir, data_path, evaluate=True)
 
@@ -215,13 +215,17 @@ class Model(object):
         previous_losses = []
         writer = tf.summary.FileWriter(self.model_dir, self.sess.graph)
         if self.phase == 'test':
+            outfile = open('/content/out.csv', 'a')
             if not distance_loaded:
                 logging.info('Warning: distance module not installed. Do whole sequence comparison instead.')
             else:
                 logging.info('Compare word based on edit distance.')
             num_correct = 0
             num_total = 0
+            i = 0
             for batch in self.s_gen.gen(self.batch_size):
+                i += 1
+                print(f'{i * self.batch_size}')
                 # Get a batch and make a step.
                 start_time = time.time()
                 bucket_id = batch['bucket_id']
@@ -237,7 +241,7 @@ class Model(object):
                 _, step_loss, step_logits, step_attns = self.step(encoder_masks, img_data, zero_paddings, decoder_inputs, target_weights, bucket_id, self.forward_only)
                 curr_step_time = (time.time() - start_time)
                 step_time += curr_step_time / self.steps_per_checkpoint
-                logging.info('step_time: %f, loss: %f, step perplexity: %f'%(curr_step_time, step_loss, math.exp(step_loss) if step_loss < 300 else float('inf')))
+                # logging.info('step_time: %f, loss: %f, step perplexity: %f'%(curr_step_time, step_loss, math.exp(step_loss) if step_loss < 300 else float('inf')))
                 loss += step_loss / self.steps_per_checkpoint
                 current_step += 1
                 step_outputs = [b for b in np.array([np.argmax(logit, axis=1).tolist() for logit in step_logits]).transpose()]
@@ -261,6 +265,7 @@ class Model(object):
                             output_valid.append(s1)
                         else:
                             flag_out = False
+                    outfile.write(file_list[idx] + ',' + ''.join([chr(c-13+97) if c-13+97>96 else chr(c-3+48) for c in output_valid]) + '\n')
                     if distance_loaded:
                         num_incorrect = distance.levenshtein(output_valid, ground_valid)
                         if self.visualize:
@@ -275,7 +280,8 @@ class Model(object):
                         if self.visualize:
                             self.visualize_attention(file_list[idx], step_attns[idx], output_valid, ground_valid, num_incorrect>0, real_len)
                     num_correct += 1. - num_incorrect
-                logging.info('%f out of %d correct' %(num_correct, num_total))
+                # logging.info('%f out of %d correct' %(num_correct, num_total))
+            outfile.close()
         elif self.phase == 'train':
             total = (self.s_gen.get_size() // self.batch_size)
             with tqdm(desc='Train: ', total=total) as pbar:
