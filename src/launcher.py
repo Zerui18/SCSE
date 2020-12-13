@@ -14,6 +14,13 @@ import exp_config
 def process_args(args, defaults):
     parser = argparse.ArgumentParser()
 
+    # additional arguments
+    parser.add_argument('--backbone', dest='backbone',
+                        type=str, default='original',
+                        choices=['original', 'resnet18'])
+
+    # original arguments
+
     parser.add_argument('--gpu-id', dest="gpu_id",
                         type=int, default=defaults.GPU_ID)
 
@@ -120,6 +127,7 @@ def main(args, defaults):
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         model = Model(
                 phase = parameters.phase,
+                backbone=parameters.backbone,
                 visualize = parameters.visualize,
                 data_path = parameters.data_path,
                 data_base_dir = parameters.data_base_dir,

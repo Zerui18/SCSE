@@ -14,6 +14,7 @@ import tensorflow as tf
 #from tensorflow.models.rnn.translate import data_utils
 
 from .cnn import CNN
+from .resnet import ResNet18
 from .seq2seq_model import Seq2SeqModel
 from data_util.data_gen import DataGen
 from tqdm import tqdm
@@ -28,6 +29,7 @@ class Model(object):
 
     def __init__(self,
             phase,
+            backbone,
             visualize,
             data_path,
             data_base_dir,
@@ -130,7 +132,12 @@ class Model(object):
             assert False, phase
 
         with tf.device(gpu_device_id):
-            cnn_model = CNN(self.img_data, True) #(not self.forward_only))
+            if backbone == 'original':
+                cnn_model = CNN(self.img_data, True)
+            elif backbone == 'resnet18':
+                cnn_model = ResNet18(self.img_data, True)
+            else:
+                raise ValueError(f'unknown backbone: {backbone}!')
             self.conv_output = cnn_model.tf_output()
             self.concat_conv_output = tf.concat(axis=1, values=[self.conv_output, self.zero_paddings])
 
