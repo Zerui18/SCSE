@@ -102,12 +102,11 @@ class Model(object):
         for i in xrange(int(buckets[-1][0] + 1)):
             self.encoder_masks.append(tf.placeholder(tf.float32, shape=[None, 1],
                                                     name="encoder_mask{0}".format(i)))
-        for i in xrange(buckets[-1][1]):
+        for i in xrange(buckets[-1][1] + 1):
             self.decoder_inputs.append(tf.placeholder(tf.int32, shape=[None],
                                                     name="decoder{0}".format(i)))
             self.target_weights.append(tf.placeholder(tf.float32, shape=[None],
                                                     name="weight{0}".format(i)))
-      
         self.reg_val = reg_val
         self.sess = session
         self.evaluate = evaluate

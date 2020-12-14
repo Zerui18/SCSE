@@ -127,6 +127,10 @@ class CNN(object):
         net = tf.add(net, (-128.0))
         net = tf.multiply(net, (1/128.0))
 
+        # zero pad width at start
+        z_pad = tf.constant([[0, 0], [1, 0], [0, 0], [0, 0]])
+        net = tf.pad(net, z_pad, 'CONSTANT')
+
         print(net.get_shape())
 
         net = ConvRelu(net, 64, (3, 3), 'conv_conv1')
@@ -137,6 +141,7 @@ class CNN(object):
         net = ConvRelu(net, 128, (3, 3), 'conv_conv2')
         net = max_2x2pool(net, 'conv_pool2')
 
+        # zero pad width both start and end
         z_pad = tf.constant([[0, 0], [1, 1], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 
