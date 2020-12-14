@@ -34,23 +34,6 @@ def _conv(x, filter_size, out_channel, strides, pad='SAME', name='conv'):
         conv = tf.nn.conv2d(x, kernel, [1, strides, strides, 1], pad)
     return conv
 
-
-def _fc(x, out_dim, name='fc'):
-    with tf.variable_scope(name):
-        # Main operation: fc
-        w = tf.get_variable('weights', [x.get_shape()[1], out_dim],
-                        tf.float32, initializer=tf.random_normal_initializer(
-                            stddev=np.sqrt(1.0/out_dim)))
-        b = tf.get_variable('biases', [out_dim], tf.float32,
-                            initializer=tf.constant_initializer(0.0))
-        if w not in tf.get_collection(WEIGHT_DECAY_KEY):
-            tf.add_to_collection(WEIGHT_DECAY_KEY, w)
-            # print('\tadded to WEIGHT_DECAY_KEY: %s(%s)' % (w.name, str(w.get_shape().as_list())))
-        fc = tf.nn.bias_add(tf.matmul(x, w), b)
-
-    return fc
-
-
 def _bn(x, is_train, name='bn'):
     moving_average_decay = 0.9
     with tf.variable_scope(name):
@@ -101,10 +84,15 @@ class ResNet18(object):
         kernels = [7, 3, 3, 3, 3]
         strides = [2, 0, 2, 2, 2]
 
+        print('input_tensor dim: {}'.format(input_tensor.get_shape()))
+        x = tf.transpose(input_tensor, perm=[0, 2, 3, 1])
+        x = tf.add(x, (-128.0))
+        x = tf.multiply(x, (1/128.0))
+
         # conv1
         print('\tBuilding unit: conv1')
         with tf.variable_scope('conv1'):
-            x = self._conv(input_tensor, kernels[0], filters[0], strides[0])
+            x = self._conv(x, kernels[0], filters[0], strides[0])
             x = self._bn(x)
             x = self._relu(x)
             x = tf.nn.max_pool(x, [1, 3, 3, 1], [1, 2, 2, 1], 'SAME')
@@ -124,6 +112,8 @@ class ResNet18(object):
         # conv5_x
         x = self._residual_block_first(x, filters[4], strides[4], name='conv5_1')
         x = self._residual_block(x, name='conv5_2')
+
+        x = tf.squeeze(x, axis=1)
 
         self.model = x
 
@@ -172,19 +162,10 @@ class ResNet18(object):
     def _conv(self, x, filter_size, out_channel, stride, pad="SAME", name="conv"):
         b, h, w, in_channel = x.get_shape().as_list()
         x = _conv(x, filter_size, out_channel, stride, pad, name)
-        f = 2 * (h/stride) * (w/stride) * in_channel * out_channel * filter_size * filter_size
-        w = in_channel * out_channel * filter_size * filter_size
         return x
-
-    def _fc(self, x, out_dim, name="fc"):
-        b, in_dim = x.get_shape().as_list()
-        x = _fc(x, out_dim, name)
-        f = 2 * (in_dim + 1) * out_dim
-        w = (in_dim + 1) * out_dim
-        return x
-
+    
     def _bn(self, x, name="bn"):
-        x = _bn(x, self.is_train, self._global_step, name)
+        x = _bn(x, self.is_train, name)
         return x
 
     def _relu(self, x, name="relu"):
