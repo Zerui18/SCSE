@@ -19,7 +19,7 @@ class DataGen(object):
                  evaluate = False,
                  valid_target_len = float('inf'),
                  img_width_range = (12, 320),
-                 word_len = 30):
+                 word_len = 3):
         """
         :param data_root:
         :param annotation_fn:
@@ -28,7 +28,7 @@ class DataGen(object):
         :return:
         """
 
-        img_height = 32
+        img_height = 55
         self.data_root = data_root
         if os.path.exists(annotation_fn):
             self.annotation_path = annotation_fn
