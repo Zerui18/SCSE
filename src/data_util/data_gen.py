@@ -3,12 +3,8 @@ __author__ = 'moonkey'
 import os
 import numpy as np
 from PIL import Image
-from collections import Counter
-import pickle as cPickle
 import random, math
-from data_util.bucketdata import BucketData
-
-
+from .bucketdata import BucketData
 
 class DataGen(object):
     GO = 1
@@ -79,15 +75,14 @@ class DataGen(object):
                         b = self.bucket_data[b_idx].flush_out(
                                 self.bucket_specs,
                                 valid_target_length=valid_target_len,
-                                go_shift=1)
+                                go_shift=1,
+                                arguments=True)
                         if b is not None:
                             yield b
                         else:
                             assert False, 'no valid bucket of width %d'%width
                 except IOError:
-                    pass # ignore error images
-                    #with open('error_img.txt', 'a') as ef:
-                    #    ef.write(img_path + '\n')
+                    pass
         self.clear()
 
     def read_data(self, img_path, lex):

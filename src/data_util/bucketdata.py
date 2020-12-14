@@ -1,13 +1,29 @@
 __author__ = 'moonkey'
 
-import os
 import numpy as np
-from PIL import Image
-# from keras.preprocessing.sequence import pad_sequences
-from collections import Counter
-import pickle as cPickle
-import random
 import math
+
+# Data Augmentation
+
+from .image import apply_transform, TransformParameters
+from .transform import random_transform
+
+_AUG_ARGS = dict(
+    min_rotation=-0.2,
+    max_rotation=0.2,
+    min_translation=(-0.1, -0.1),
+    max_translation=(0.1, 0.1),
+    min_shear=-0.5,
+    max_shear=0.5,
+)
+
+_TRANSFORM_PARAMS = TransformParameters()
+
+def aug_image(image):
+    mat = random_transform(**_AUG_ARGS)
+    return apply_transform(image, mat, _TRANSFORM_PARAMS)
+
+# End - Data Augmentation
 
 class BucketData(object):
     def __init__(self):
@@ -30,7 +46,7 @@ class BucketData(object):
         return len(self.data_list)
 
     def flush_out(self, bucket_specs, valid_target_length=float('inf'),
-                  go_shift=1):
+                  go_shift=1, augments=True):
         # print self.max_width, self.max_label_len
         res = dict(bucket_id=None,
                    data=None, zero_paddings=None, encoder_mask=None,
@@ -55,6 +71,8 @@ class BucketData(object):
         res['data_len'] = [a.astype(np.int32) for a in
                                  np.array(self.data_len_list)]
         res['data'] = np.array(self.data_list)
+        if augments:
+            res['data'] = np.array([aug_image(img) for img in self.data_list])
         real_len = max(int(math.floor(self.max_width / 4)) - 1, 0)
         padd_len = int(encoder_input_len) - real_len
         res['zero_paddings'] = np.zeros([len(self.data_list), padd_len, 512],
