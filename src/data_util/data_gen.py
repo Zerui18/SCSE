@@ -76,7 +76,7 @@ class DataGen(object):
                                 self.bucket_specs,
                                 valid_target_length=valid_target_len,
                                 go_shift=1,
-                                arguments=True)
+                                augments=True)
                         if b is not None:
                             yield b
                         else:

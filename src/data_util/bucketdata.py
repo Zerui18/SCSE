@@ -21,7 +21,7 @@ _TRANSFORM_PARAMS = TransformParameters()
 
 def aug_image(image):
     mat = random_transform(**_AUG_ARGS)
-    return apply_transform(image, mat, _TRANSFORM_PARAMS)
+    return apply_transform(mat, image, _TRANSFORM_PARAMS)
 
 # End - Data Augmentation
 
@@ -71,7 +71,8 @@ class BucketData(object):
         res['data_len'] = [a.astype(np.int32) for a in
                                  np.array(self.data_len_list)]
         res['data'] = np.array(self.data_list)
-        if augments:
+        if augments and np.random.random() >= 0.5:
+            print('aug')
             res['data'] = np.array([aug_image(img) for img in self.data_list])
         real_len = max(int(math.floor(self.max_width / 4)) - 1, 0)
         padd_len = int(encoder_input_len) - real_len
