@@ -1,72 +1,77 @@
-from collections import namedtuple
+__author__ = 'moonkey'
 
-import tensorflow as tf
+#from keras import models, layers
+import logging
 import numpy as np
+# from src.data_util.synth_prepare import SynthGen
 
-# from py
-
-import numpy as np
+#import keras.backend as K
 import tensorflow as tf
 
-## TensorFlow helper functions
 
-WEIGHT_DECAY_KEY = 'WEIGHT_DECAY'
+def var_random(name, shape, regularizable=False):
+    '''
+    Initialize a random variable using xavier initialization.
+    Add regularization if regularizable=True
+    :param name:
+    :param shape:
+    :param regularizable:
+    :return:
+    '''
+    v = tf.get_variable(name, shape=shape, initializer=tf.contrib.layers.xavier_initializer())
+    if regularizable:
+        with tf.name_scope(name + '/Regularizer/'):
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, tf.nn.l2_loss(v))
+    return v
 
-def _relu(x, leakness=0.0, name=None):
-    if leakness > 0.0:
-        name = 'lrelu' if name is None else name
-        return tf.maximum(x, x*leakness, name='lrelu')
+def MaxPooling2D(incoming, k_size, strides, name):
+    with tf.variable_scope(name):
+        return tf.nn.max_pool(incoming, ksize=(1, *k_size, 1), strides=(1, *strides, 1), padding='VALID')
+
+def batch_norm(incoming, is_training):
+    return tf.contrib.layers.batch_norm(incoming, is_training=is_training, scale=True, decay=0.99)
+
+def Conv2D(incoming, num_filters, filter_size, strides=(1, 1), padding_type='SAME'):
+    num_filters_from = incoming.get_shape().as_list()[3]
+
+    conv_W = var_random('W', tuple(filter_size) + (num_filters_from, num_filters), regularizable=True)
+
+    return tf.nn.conv2d(incoming, conv_W, strides=(1,*strides,1), padding=padding_type)
+
+def BNRelu(incoming, is_training):
+    after_bn = batch_norm(incoming, is_training)
+
+    return tf.nn.relu(after_bn)
+
+def ConvBNRelu(incoming, num_filters, filter_size, name, is_training, padding_type = 'SAME'):
+    with tf.variable_scope(name):
+        after_conv = Conv2D(incoming, num_filters, filter_size, padding_type=padding_type)
+
+        return BNRelu(after_conv, is_training)
+
+def BNReluConv(incoming, num_filters, filter_size, name, is_training, strides=(1, 1), padding_type = 'SAME'):
+    with tf.variable_scope(name):
+        after_bnrelu = BNRelu(incoming, is_training)
+
+        return Conv2D(after_bnrelu, num_filters, filter_size, strides, padding_type)
+
+# Resnet Layers
+
+def ResidualBlock(incoming, n_filters, blk_id, no_width_subsampling, is_training):
+    # pre-activation version
+    if blk_id == 1:
+        # already got pre-activations
+        x = Conv2D(incoming, n_filters, (3, 3))
+        x_id = incoming
     else:
-        name = 'relu' if name is None else name
-        return tf.nn.relu(x, name='relu')
+        # apply pre-activations
+        strides = (1, 2) if no_width_subsampling else (2, 2)
+        x = BNReluConv(incoming, n_filters, (3, 3), f'res_block_{blk_id}', is_training, strides) # subsample with stride
+        x_id = Conv2D(incoming, n_filters, (1, 1), strides, 'VALID') # subsample id with 1x1 conv
+    x = BNReluConv(incoming, n_filters, (3, 3), f'res_block_{blk_id}', is_training)
+    return tf.add(x, x_id)
 
-
-def _conv(x, filter_size, out_channel, strides, pad='SAME', name='conv'):
-    in_shape = x.get_shape()
-    with tf.variable_scope(name):
-        # Main operation: conv2d
-        kernel = tf.get_variable('kernel', [filter_size, filter_size, in_shape[3], out_channel],
-                        tf.float32, initializer=tf.random_normal_initializer(
-                            stddev=np.sqrt(2.0/filter_size/filter_size/out_channel)))
-        if kernel not in tf.get_collection(WEIGHT_DECAY_KEY):
-            tf.add_to_collection(WEIGHT_DECAY_KEY, kernel)
-            # print('\tadded to WEIGHT_DECAY_KEY: %s(%s)' % (kernel.name, str(kernel.get_shape().as_list())))
-        conv = tf.nn.conv2d(x, kernel, [1, strides, strides, 1], pad)
-    return conv
-
-def _bn(x, is_train, name='bn'):
-    moving_average_decay = 0.9
-    with tf.variable_scope(name):
-        decay = moving_average_decay
-        batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2])
-        mu = tf.get_variable('mu', batch_mean.get_shape(), tf.float32,
-                        initializer=tf.zeros_initializer(), trainable=False)
-        sigma = tf.get_variable('sigma', batch_var.get_shape(), tf.float32,
-                        initializer=tf.ones_initializer(), trainable=False)
-        beta = tf.get_variable('beta', batch_mean.get_shape(), tf.float32,
-                        initializer=tf.zeros_initializer())
-        gamma = tf.get_variable('gamma', batch_var.get_shape(), tf.float32,
-                        initializer=tf.ones_initializer())
-        # BN when training
-        update = 1.0 - decay
-        # with tf.control_dependencies([tf.Print(decay, [decay])]):
-            # update_mu = mu.assign_sub(update*(mu - batch_mean))
-        update_mu = mu.assign_sub(update*(mu - batch_mean))
-        update_sigma = sigma.assign_sub(update*(sigma - batch_var))
-        tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, update_mu)
-        tf.add_to_collection(tf.GraphKeys.UPDATE_OPS, update_sigma)
-
-        if is_train:
-            mean, var = batch_mean, batch_var
-        else:
-            mean, var = mu, sigma
-
-        bn = tf.nn.batch_normalization(x, mean, var, beta, gamma, 1e-5)
-    return bn
-
-# back to resnet.py
-
-class ResNet18(object):
+class CNN(object):
     """
     Usage for tf tensor output:
     o = CNN(x).tf_output()
@@ -74,106 +79,57 @@ class ResNet18(object):
     """
 
     def __init__(self, input_tensor, is_training):
-        self.is_train = is_training
-        self._build_network(input_tensor)
+        self._build_network(input_tensor, is_training)
 
-    def _build_network(self, input_tensor):
-        print('Building model')
-        # filters = [128, 128, 256, 512, 1024]
-        filters = [64, 64, 128, 256, 512]
-        kernels = [7, 3, 3, 3, 3]
-        strides = [2, 0, 2, 2, 2]
-
+    def _build_network(self, input_tensor, is_training):
+        """
+        https://github.com/bgshih/crnn/blob/master/model/crnn_demo/config.lua
+        :return:
+        """
         print('input_tensor dim: {}'.format(input_tensor.get_shape()))
-        x = tf.transpose(input_tensor, perm=[0, 2, 3, 1])
-        x = tf.add(x, (-128.0))
-        x = tf.multiply(x, (1/128.0))
+        net = tf.transpose(input_tensor, perm=[0, 2, 3, 1])
+        net = tf.add(net, (-128.0))
+        net = tf.multiply(net, (1/128.0))
 
-        # conv1
-        print('\tBuilding unit: conv1')
-        with tf.variable_scope('conv1'):
-            x = self._conv(x, kernels[0], filters[0], strides[0])
-            x = self._bn(x)
-            x = self._relu(x)
-            x = tf.nn.max_pool(x, [1, 3, 3, 1], [1, 2, 2, 1], 'SAME')
+        # image size is w=135, h=55
 
-        # conv2_x
-        x = self._residual_block(x, name='conv2_1')
-        x = self._residual_block(x, name='conv2_2')
+        # :: first block: output h=28
+        # zero pad height
+        z_pad = tf.constant([[0, 0], [1, 1], [0, 0], [0, 0]])
+        net = tf.pad(net, z_pad, 'CONSTANT')
+        # now h=57
+        net = ConvBNRelu(net, 64, (7, 7), 'conv1_conv')
+        net = MaxPooling2D(net, (3, 3), (2, 2), 'conv1_maxpool')
 
-        # conv3_x
-        x = self._residual_block_first(x, filters[2], strides[2], name='conv3_1')
-        x = self._residual_block(x, name='conv3_2')
+        # :: res block 1: output h=14
+        net = ResidualBlock(net, 64, 1, no_width_subsampling=False, is_training=is_training)
 
-        # conv4_x
-        x = self._residual_block_first(x, filters[3], strides[3], name='conv4_1')
-        x = self._residual_block(x, name='conv4_2')
+        # :: res block 2: output h=8
+        net = ResidualBlock(net, 128, 2, no_width_subsampling=True, is_training=is_training)
+        # zero pad height
+        z_pad = tf.constant([[0, 0], [1, 0], [0, 0], [0, 0]])
+        net = tf.pad(net, z_pad, 'CONSTANT')
 
-        # conv5_x
-        x = self._residual_block_first(x, filters[4], strides[4], name='conv5_1')
-        x = self._residual_block(x, name='conv5_2')
+        # :: res block 3: output h=4
+        net = ResidualBlock(net, 256, 3, no_width_subsampling=True, is_training=is_training)
 
-        x = tf.squeeze(x, axis=1)
+        # :: res block 4: output h=2
 
-        self.model = x
+        net = ResidualBlock(net, 512, 4, no_width_subsampling=True, is_training=is_training)
 
-    def _residual_block_first(self, x, out_channel, strides, name="unit"):
-        in_channel = x.get_shape().as_list()[-1]
-        with tf.variable_scope(name) as scope:
-            print('\tBuilding residual unit: %s' % scope.name)
+        # :: res block 5: output h=1
 
-            # Shortcut connection
-            if in_channel == out_channel:
-                if strides == 1:
-                    shortcut = tf.identity(x)
-                else:
-                    shortcut = tf.nn.max_pool(x, [1, strides, strides, 1], [1, strides, strides, 1], 'VALID')
-            else:
-                shortcut = self._conv(x, 1, out_channel, strides, name='shortcut')
-            # Residual
-            x = self._conv(x, 3, out_channel, strides, name='conv_1')
-            x = self._bn(x, name='bn_1')
-            x = self._relu(x, name='relu_1')
-            x = self._conv(x, 3, out_channel, 1, name='conv_2')
-            x = self._bn(x, name='bn_2')
-            # Merge
-            x = x + shortcut
-            x = self._relu(x, name='relu_2')
-        return x
+        net = ResidualBlock(net, 512, 5, no_width_subsampling=True, is_training=is_training)
 
-
-    def _residual_block(self, x, name="unit"):
-        num_channel = x.get_shape().as_list()[-1]
-        with tf.variable_scope(name) as scope:
-            print('\tBuilding residual unit: %s' % scope.name)
-            # Shortcut connection
-            shortcut = x
-            # Residual
-            x = self._conv(x, 3, num_channel, 1, name='conv_1')
-            x = self._bn(x, name='bn_1')
-            x = self._relu(x, name='relu_1')
-            x = self._conv(x, 3, num_channel, 1, name='conv_2')
-            x = self._bn(x, name='bn_2')
-
-            x = x + shortcut
-            x = self._relu(x, name='relu_2')
-        return x
-
-    def _conv(self, x, filter_size, out_channel, stride, pad="SAME", name="conv"):
-        b, h, w, in_channel = x.get_shape().as_list()
-        x = _conv(x, filter_size, out_channel, stride, pad, name)
-        return x
-    
-    def _bn(self, x, name="bn"):
-        x = _bn(x, self.is_train, name)
-        return x
-
-    def _relu(self, x, name="relu"):
-        x = _relu(x, 0.0, name)
-        return x
+        print('CNN outdim: {}'.format(net.get_shape()))
+        self.model = net
 
     def tf_output(self):
+        # if self.input_tensor is not None:
         return self.model
-
+    '''
+    def __call__(self, input_tensor):
+        return self.model(input_tensor)
+    '''
     def save(self):
         pass

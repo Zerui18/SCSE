@@ -131,37 +131,39 @@ class CNN(object):
         z_pad = tf.constant([[0, 0], [1, 0], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 
-        print(net.get_shape())
+        # block 1
 
         net = ConvRelu(net, 64, (3, 3), 'conv_conv1')
         net = max_2x2pool(net, 'conv_pool1')
 
-        print(net.get_shape())
+        # block 2
 
         net = ConvRelu(net, 128, (3, 3), 'conv_conv2')
         net = max_2x2pool(net, 'conv_pool2')
+
+        # block 3
 
         # zero pad width both start and end
         z_pad = tf.constant([[0, 0], [1, 1], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 
-        print(net.get_shape())
-
         net = ConvReluBN(net, 256, (3, 3), 'conv_conv3', is_training)
         net = ConvRelu(net, 256, (3, 3), 'conv_conv4')
         net = max_2x1pool(net, 'conv_pool3')
 
-        print(net.get_shape())
+        # block 4
 
         net = ConvReluBN(net, 512, (3, 3), 'conv_conv5', is_training)
         net = ConvRelu(net, 512, (3, 3), 'conv_conv6')
         net = max_2x1pool(net, 'conv_pool4')
 
+        # block 5
+
         net = ConvReluBN(net, 1024, (3, 3), 'conv_conv7', is_training)
         net = ConvRelu(net, 1024, (3, 3), 'conv_conv8')
         net = max_2x1pool(net, 'conv_pool5')
 
-        print(net.get_shape())
+        # block 6
 
         net = ConvReluBN(net, 512, (2, 2), 'conv_conv9', is_training, "VALID")
         net = dropout(net, is_training)
