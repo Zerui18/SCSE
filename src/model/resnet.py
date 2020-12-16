@@ -58,20 +58,21 @@ def BNReluConv(incoming, num_filters, filter_size, name, is_training, strides=(1
 # Resnet Layers
 
 def ResidualBlock(incoming, n_filters, blk_id, no_width_subsampling, is_training):
-    # pre-activation version
-    if blk_id == 1:
-        # already got pre-activations
-        x = Conv2D(incoming, n_filters, (3, 3))
-        x_id = incoming
-    else:
-        # apply pre-activations
-        strides = (1, 2) if no_width_subsampling else (2, 2)
-        x = BNReluConv(incoming, n_filters, (3, 3), f'res_block_{blk_id}', is_training, strides) # subsample with stride
-        x_id = Conv2D(incoming, n_filters, (1, 1), strides, 'VALID') # subsample id with 1x1 conv
-    x = BNReluConv(incoming, n_filters, (3, 3), f'res_block_{blk_id}', is_training)
-    return tf.add(x, x_id)
+    with tf.variable_scope(f'res_blk{blk_id}'):
+        strides = (2, 1) if no_width_subsampling else (2, 2)
+        with tf.variable_scope(f'id'):
+            identity = Conv2D(incoming, n_filters, (1, 1), strides, 'VALID') # subsample id with 1x1 conv
+        # pre-activation version
+        if blk_id == 1:
+            # already got pre-activations
+            residual = Conv2D(incoming, n_filters, (3, 3), strides)
+        else:
+            # apply pre-activations
+            residual = BNReluConv(incoming, n_filters, (3, 3), 'conv1', is_training, strides)
+        residual = BNReluConv(residual, n_filters, (3, 3), f'conv2', is_training)
+        return tf.add(residual, identity)
 
-class CNN(object):
+class ResNet(object):
     """
     Usage for tf tensor output:
     o = CNN(x).tf_output()
@@ -98,11 +99,15 @@ class CNN(object):
         z_pad = tf.constant([[0, 0], [1, 1], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
         # now h=57
-        net = ConvBNRelu(net, 64, (7, 7), 'conv1_conv')
+        net = ConvBNRelu(net, 64, (7, 7), 'conv1_conv', is_training=is_training)
         net = MaxPooling2D(net, (3, 3), (2, 2), 'conv1_maxpool')
+
+        print(net.get_shape())
 
         # :: res block 1: output h=14
         net = ResidualBlock(net, 64, 1, no_width_subsampling=False, is_training=is_training)
+
+        print(net.get_shape())
 
         # :: res block 2: output h=8
         net = ResidualBlock(net, 128, 2, no_width_subsampling=True, is_training=is_training)
@@ -110,16 +115,27 @@ class CNN(object):
         z_pad = tf.constant([[0, 0], [1, 0], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 
+        print(net.get_shape())
+
         # :: res block 3: output h=4
         net = ResidualBlock(net, 256, 3, no_width_subsampling=True, is_training=is_training)
+
+        print(net.get_shape())
 
         # :: res block 4: output h=2
 
         net = ResidualBlock(net, 512, 4, no_width_subsampling=True, is_training=is_training)
 
+        print(net.get_shape())
+
         # :: res block 5: output h=1
 
         net = ResidualBlock(net, 512, 5, no_width_subsampling=True, is_training=is_training)
+        net = BNRelu(net, is_training)
+
+        net = tf.squeeze(net, axis=1)
+
+        print(net.get_shape())
 
         print('CNN outdim: {}'.format(net.get_shape()))
         self.model = net

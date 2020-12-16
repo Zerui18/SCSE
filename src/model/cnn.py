@@ -127,7 +127,7 @@ class CNN(object):
         net = tf.add(net, (-128.0))
         net = tf.multiply(net, (1/128.0))
 
-        # zero pad width at start
+        # zero pad height at top
         z_pad = tf.constant([[0, 0], [1, 0], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 
@@ -143,7 +143,7 @@ class CNN(object):
 
         # block 3
 
-        # zero pad width both start and end
+        # zero pad height both top and bottom
         z_pad = tf.constant([[0, 0], [1, 1], [0, 0], [0, 0]])
         net = tf.pad(net, z_pad, 'CONSTANT')
 

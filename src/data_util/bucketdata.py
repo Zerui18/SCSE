@@ -72,7 +72,6 @@ class BucketData(object):
                                  np.array(self.data_len_list)]
         res['data'] = np.array(self.data_list)
         if augments and np.random.random() >= 0.5:
-            print('aug')
             res['data'] = np.array([aug_image(img) for img in self.data_list])
         real_len = max(int(math.floor(self.max_width / 4)) - 1, 0)
         padd_len = int(encoder_input_len) - real_len

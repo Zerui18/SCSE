@@ -17,7 +17,7 @@ def process_args(args, defaults):
     # additional arguments
     parser.add_argument('--backbone', dest='backbone',
                         type=str, default='original',
-                        choices=['original', 'resnet18'])
+                        choices=['original', 'resnet'])
 
     # original arguments
 
