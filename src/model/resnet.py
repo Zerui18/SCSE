@@ -100,7 +100,7 @@ class ResNet(object):
         net = tf.pad(net, z_pad, 'CONSTANT')
         # now h=57
         net = ConvBNRelu(net, 64, (7, 7), 'conv1_conv', is_training=is_training)
-        net = MaxPooling2D(net, (3, 3), (2, 2), 'conv1_maxpool')
+        net = MaxPooling2D(net, (2, 2), (2, 2), 'conv1_maxpool')
 
         print(net.get_shape())
 

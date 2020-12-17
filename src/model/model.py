@@ -19,6 +19,36 @@ from .seq2seq_model import Seq2SeqModel
 from data_util.data_gen import DataGen
 from tqdm import tqdm
 
+# Logging
+
+import tensorflow as tf
+from io import StringIO
+import matplotlib.pyplot as plt
+import numpy as np
+
+class Logger:
+    """Logging in tensorboard without tensorflow ops."""
+
+    def __init__(self, log_dir):
+        """Creates a summary writer logging to log_dir."""
+        self.writer = tf.summary.FileWriter(log_dir)
+
+    def log_scalar(self, tag, value, step):
+        """Log a scalar variable.
+        Parameter
+        ----------
+        tag : basestring
+            Name of the scalar
+        value
+        step : int
+            training iteration
+        """
+        summary = tf.Summary(value=[tf.Summary.Value(tag=tag,
+                                                     simple_value=value)])
+        self.writer.add_summary(summary, step)
+
+# End logging
+
 try:
     import distance
     distance_loaded = True
@@ -39,7 +69,8 @@ class Model(object):
             num_epoch,
             steps_per_checkpoint,
             target_vocab_size, 
-            model_dir, 
+            model_dir,
+            log_dir, 
             target_embedding_size,
             attn_num_hidden, 
             attn_num_layers,
@@ -93,7 +124,7 @@ class Model(object):
             logging.info('ues GRU in the decoder.')
 
         # variables
-        self.img_data = tf.placeholder(tf.float32, shape=(None, 1, 55, None), name='img_data')
+        self.img_data = tf.placeholder(tf.float32, shape=(None, 1, 55, 135), name='img_data')
         self.zero_paddings = tf.placeholder(tf.float32, shape=(None, None, 512), name='zero_paddings')
         
         self.decoder_inputs = []
@@ -112,6 +143,7 @@ class Model(object):
         self.evaluate = evaluate
         self.steps_per_checkpoint = steps_per_checkpoint 
         self.model_dir = model_dir
+        self.log_dir = log_dir
         self.output_dir = output_dir
         self.buckets = buckets
         self.batch_size = batch_size
@@ -138,7 +170,9 @@ class Model(object):
             else:
                 raise ValueError(f'unknown backbone: {backbone}!')
             self.conv_output = cnn_model.tf_output()
-            self.concat_conv_output = tf.concat(axis=1, values=[self.conv_output, self.zero_paddings])
+            print(self.conv_output.get_shape(), self.zero_paddings.get_shape()) 
+            # self.concat_conv_output = tf.concat(axis=1, values=[self.conv_output, self.zero_paddings])
+            self.concat_conv_output = self.conv_output
 
             self.perm_conv_output = tf.transpose(self.concat_conv_output, perm=[1, 0, 2])
 
@@ -289,6 +323,7 @@ class Model(object):
                 # logging.info('%f out of %d correct' %(num_correct, num_total))
             outfile.close()
         elif self.phase == 'train':
+            logger = Logger(self.log_dir)
             total = (self.s_gen.get_size() // self.batch_size)
             with tqdm(desc='Train: ', total=total) as pbar:
                 for epoch in range(self.num_epoch):
@@ -350,6 +385,9 @@ class Model(object):
                         precision = num_correct / num_total
                         logging.info('step %f - time: %f, loss: %f, perplexity: %f, precision: %f, batch_len: %f'%(current_step, curr_step_time, step_loss, math.exp(step_loss) if step_loss < 300 else float('inf'), precision, batch_len))
                         loss += step_loss / self.steps_per_checkpoint
+                        # tensorboard log
+                        logger.log_scalar('loss', step_loss, i)
+                        logger.log_scalar('precision', precision, i)
                         pbar.set_description('Train, loss={:.8f}'.format(step_loss))
                         pbar.update()
                         current_step += 1

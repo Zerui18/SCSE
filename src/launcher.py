@@ -72,6 +72,10 @@ def process_args(args, defaults):
                         help=('The directory for saving and loading model '
                             '(structure is not stored), '
                             'default=%s' %(defaults.MODEL_DIR)))
+    parser.add_argument('--log-dir', dest="log_dir",
+                        type=str, default=defaults.LOG_DIR,
+                        help=('The directory for tensorboard logging '
+                            'default=%s' %(defaults.LOG_DIR)))
     parser.add_argument('--target-embedding-size', dest="target_embedding_size",
                         type=int, default=defaults.TARGET_EMBEDDING_SIZE,
                         help=('Embedding dimension for each target, default=%s' 
@@ -132,6 +136,7 @@ def main(args, defaults):
                 data_path = parameters.data_path,
                 data_base_dir = parameters.data_base_dir,
                 output_dir = parameters.output_dir,
+                log_dir=parameters.log_dir,
                 batch_size = parameters.batch_size,
                 initial_learning_rate = parameters.initial_learning_rate,
                 num_epoch = parameters.num_epoch,
