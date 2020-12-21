@@ -133,12 +133,14 @@ class CNN(object):
 
         # block 1
 
-        net = ConvRelu(net, 64, (3, 3), 'conv_conv1')
+        net = ConvReluBN(net, 64, (3, 3), 'conv_conv1', is_training)
+        net = ConvReluBN(net, 64, (3, 3), 'conv_conv1_', is_training)
         net = max_2x2pool(net, 'conv_pool1')
 
         # block 2
 
-        net = ConvRelu(net, 128, (3, 3), 'conv_conv2')
+        net = ConvReluBN(net, 128, (3, 3), 'conv_conv2', is_training)
+        net = ConvReluBN(net, 128, (3, 3), 'conv_conv2_', is_training)
         net = max_2x2pool(net, 'conv_pool2')
 
         # block 3
@@ -148,19 +150,19 @@ class CNN(object):
         net = tf.pad(net, z_pad, 'CONSTANT')
 
         net = ConvReluBN(net, 256, (3, 3), 'conv_conv3', is_training)
-        net = ConvRelu(net, 256, (3, 3), 'conv_conv4')
+        net = ConvReluBN(net, 256, (3, 3), 'conv_conv4', is_training)
         net = max_2x1pool(net, 'conv_pool3')
 
         # block 4
 
         net = ConvReluBN(net, 512, (3, 3), 'conv_conv5', is_training)
-        net = ConvRelu(net, 512, (3, 3), 'conv_conv6')
+        net = ConvReluBN(net, 512, (3, 3), 'conv_conv6', is_training)
         net = max_2x1pool(net, 'conv_pool4')
 
         # block 5
 
         net = ConvReluBN(net, 1024, (3, 3), 'conv_conv7', is_training)
-        net = ConvRelu(net, 1024, (3, 3), 'conv_conv8')
+        net = ConvReluBN(net, 1024, (3, 3), 'conv_conv8', is_training)
         net = max_2x1pool(net, 'conv_pool5')
 
         # block 6

@@ -62,7 +62,7 @@ class Model(object):
             self.s_gen = DataGen(
                 data_base_dir, data_path, valid_target_len=valid_target_length, evaluate=False)
         else:
-            batch_size = 100
+            batch_size = 1000
             self.s_gen = DataGen(
                 data_base_dir, data_path, evaluate=True)
 
