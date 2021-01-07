@@ -21,7 +21,7 @@ class ExpConfig:
     STEPS_PER_CHECKPOINT = 500 # checkpointing (print perplexity, save model) per how many steps
 
     # Optimization
-    NUM_EPOCH = 1000
+    NUM_EPOCH = 15
     BATCH_SIZE = 256
     INITIAL_LEARNING_RATE = 1.0 # initial learning rate, note the we use AdaDelta, so the initial value doe not matter much
 
